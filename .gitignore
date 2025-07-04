@@ -1,0 +1,4 @@
+# .gitignore
+# Ignore the node_modules folder and our secret .env file
+node_modules
+.env

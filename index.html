@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Visual Vibe Connector - Interactive Graph</title>
+    <!-- vis-network CSS -->
+    <link href="https://unpkg.com/vis-network/styles/vis-network.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- The Interactive Graph will live here, in the background -->
+    <div id="graph-container"></div>
+    <div id="details-popup" class="hidden"></div>
+
+    <!-- The main control panel -->
+    <div id="control-panel">
+        <h1>Visual Vibe Connector</h1>
+        <p>Find the connections between any two actors!</p>
+        <div class="input-area">
+            <input id="actor1-input" type="text" placeholder="First Actor's Name">
+            <input id="actor2-input" type="text" placeholder="Second Actor's Name">
+        </div>
+        <button id="find-button">Find Connection</button>
+        <p id="message-area"></p>
+    </div>
+
+    <!-- Rate Limit "Waiting Room" -->
+    <div id="waiting-room-container" class="hidden">
+        <div class="container">
+            <h2>You've Got the Vibe! (A little too much)</h2>
+            <p>We've hit an API limit. Please try again later.</p>
+            <h3>While you wait, play a classic!</h3>
+            <iframe id="minigame-frame" src="https://www.google.com/logos/2010/pacman10-i.html" loading="lazy"></iframe>
+            <h3>App Demo</h3>
+            <video width="100%" controls>
+                <source src="YOUR_DEMO_VIDEO_URL.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+    </div>
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
