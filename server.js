@@ -25,6 +25,18 @@ setInterval(() => {
 app.use(cors());
 app.use(express.static(path.join(__dirname, '/')));
 
+// Explicitly define the root route to serve the index.html file
+// Fucking vercel istg
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+// --- END OF FIX ---
+
+// --- Server-Sent Events Endpoint ---
+app.get('/api/find-connection-stream', async (req, res) => {
+    // ... the rest of your API code ...
+});
+
 // --- Server-Sent Events Endpoint ---
 app.get('/api/find-connection-stream', async (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
