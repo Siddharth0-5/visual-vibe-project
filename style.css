@@ -115,3 +115,11 @@ button:hover {
     border-radius: 10px;
     margin-bottom: 20px;
 }
+
+/* --- THE FIX for Invisible Text --- */
+/* This targets the text labels inside the vis-network canvas */
+.vis-network .vis-label {
+    color: #111 !important; /* A dark color for the text */
+    font-weight: bold;
+    text-shadow: 1px 1px 2px #ffffff; /* A subtle white shadow to make it pop */
+}

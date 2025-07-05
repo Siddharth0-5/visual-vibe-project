@@ -1,5 +1,5 @@
-// server.js
-require('dotenv').config(); // Load variables from .env file
+// server.js - Final Version with all functions included
+require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -11,42 +11,64 @@ const PORT = 3000;
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const GIPHY_API_KEY = process.env.GIPHY_API_KEY;
 
+// Simple in-memory counter for GIPHY requests
+let giphyRequestCount = 0;
+const GIPHY_LIMIT = 100;
+
+// Reset the counter every hour
+setInterval(() => {
+    giphyRequestCount = 0;
+    console.log("GIPHY request counter has been reset.");
+}, 3600 * 1000);
+
 // Middleware
-app.use(cors()); // Allow requests from our frontend
-app.use(express.static(path.join(__dirname, '/'))); // Serve our static files (html, css, js)
+app.use(cors());
+app.use(express.static(path.join(__dirname, '/')));
 
-// The main API endpoint that our frontend will call
-app.get('/api/find-connection', async (req, res) => {
-    const { actor1Name, actor2Name } = req.query;
+// --- Server-Sent Events Endpoint ---
+app.get('/api/find-connection-stream', async (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders(); // Send headers immediately
 
-    if (!actor1Name || !actor2Name) {
-        return res.status(400).json({ error: 'Both actor names are required' });
-    }
+    const sendEvent = (type, data, id) => {
+        const eventString = `id: ${id}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+        res.write(eventString);
+    };
+
+    const sendUpdate = (message) => sendEvent('update', { message }, Date.now());
+    const sendResult = (path, remaining) => sendEvent('result', { path }, remaining);
+    const sendError = (message) => sendEvent('error', { message }, Date.now());
 
     try {
+        const { actor1Name, actor2Name } = req.query;
+
+        sendUpdate('Finding actors in the database...');
         const startActor = await findActor(actor1Name);
         const endActor = await findActor(actor2Name);
-
-        // --- IMPROVED ERROR CHECKING ---
+        
         if (!startActor || !endActor) {
-            // Figure out which actor was not found and return a specific message
-            const missingActor = !startActor ? actor1Name : actor2Name;
-            return res.status(404).json({ error: `Could not find an actor named "${missingActor}". Please check the spelling.` });
+            sendError('One or both actors not found. Please check spelling.');
+            return res.end();
         }
 
-        const path = await findConnectionPath(startActor, endActor);
-
+        const path = await bidirectionalSearch(startActor, endActor, sendUpdate);
+        
         if (path) {
+            sendUpdate('Connection found! Fetching GIFs...');
             const pathWithGifs = await addGifsToPath(path);
-            res.json({ path: pathWithGifs });
+            const remaining = GIPHY_LIMIT - giphyRequestCount;
+            sendResult(pathWithGifs, remaining);
         } else {
-            res.status(404).json({ error: 'No connection path found between these actors within 3 steps.' });
+            sendError('Could not find a connection path within the search limit.');
         }
 
     } catch (error) {
-        console.error('Server error:', error.message);
-        // This now correctly handles a true server-side failure (e.g., TMDb is down)
-        res.status(500).json({ error: 'An internal server error occurred while contacting the movie database.' });
+        console.error('Server stream error:', error);
+        sendError('An internal server error occurred.');
+    } finally {
+        res.end();
     }
 });
 
@@ -70,76 +92,95 @@ const getActorsForMovie = async (movieId) => {
     return response.data.cast;
 };
 
-// server.js - A more robust version of this function
-
-const findConnectionPath = async (startActor, endActor) => {
-    const queue = [[startActor]];
-    const visited = new Set([startActor.id]);
-    const MAX_SEARCH_DEPTH = 3;
-
-    while (queue.length > 0) {
-        const currentPath = queue.shift();
-
-        if (Math.floor(currentPath.length / 2) >= MAX_SEARCH_DEPTH) continue;
-
-        const currentActor = currentPath[currentPath.length - 1];
-        let movies;
-
-        // --- ROBUSTNESS FIX #1 ---
-        // Wrap the API call in a try/catch. If it fails, just skip this actor.
-        try {
-            movies = await getMoviesForActor(currentActor.id);
-        } catch (e) {
-            console.warn(`--> Network error while getting movies for ${currentActor.name}. Skipping.`);
-            continue; // Go to the next item in the queue
-        }
-        // --- END OF FIX ---
-
-        for (const movie of movies) {
-            let cast;
-
-            // --- ROBUSTNESS FIX #2 ---
-            // Wrap this call too. If it fails, just skip this movie.
-            try {
-                cast = await getActorsForMovie(movie.id);
-            } catch (e) {
-                console.warn(`--> Network error while getting cast for ${movie.title}. Skipping.`);
-                continue; // Go to the next movie in the list
-            }
-            // --- END OF FIX ---
-            
-            for (const castMember of cast) {
-                if (castMember.id === endActor.id) {
-                    return [...currentPath, movie, endActor];
-                }
-                if (!visited.has(castMember.id)) {
-                    visited.add(castMember.id);
-                    const newPath = [...currentPath, movie, castMember];
-                    queue.push(newPath);
-                }
-            }
-        }
-    }
-    return null;
-};
-
-
 const getGif = async (searchTerm) => {
+    if (giphyRequestCount >= GIPHY_LIMIT) {
+        console.warn("GIPHY rate limit reached! Serving placeholder.");
+        return null;
+    }
     const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(searchTerm)}&limit=1`;
-    const response = await axios.get(url);
-    return response.data.data.length > 0 ? response.data.data[0].images.fixed_width.url : null;
+    try {
+        const response = await axios.get(url);
+        giphyRequestCount++; // Increment only on successful call
+        return response.data.data.length > 0 ? response.data.data[0].images.fixed_width.url : null;
+    } catch (error) {
+        console.error(`GIPHY API call failed for term: ${searchTerm}`, error.message);
+        return null; // Return null on API error
+    }
 };
 
 const addGifsToPath = async (path) => {
     const promises = path.map(async (item) => {
-        const searchTerm = item.gender !== undefined ? item.name : `${item.title} movie`;
+        const searchTerm = item.name || `${item.title} movie`;
         const gifUrl = await getGif(searchTerm);
         return { ...item, gifUrl };
     });
     return Promise.all(promises);
 };
 
-// --- Start the server ---
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+// --- Bidirectional Search Implementation ---
+async function bidirectionalSearch(startNode, endNode, sendUpdate) {
+    let forwardQueue = [[startNode]];
+    let backwardQueue = [[endNode]];
+
+    let forwardVisited = new Map([[startNode.id, [startNode]]]);
+    let backwardVisited = new Map([[endNode.id, [endNode]]]);
+
+    let level = 0;
+    const MAX_LEVELS = 2; // Each level out from one side
+
+    while (level < MAX_LEVELS) {
+        level++;
+        
+        // Expand forward
+        sendUpdate(`Searching level ${level} from ${startNode.name}...`);
+        let newForwardQueue = [];
+        for (const path of forwardQueue) {
+            const lastNode = path[path.length - 1];
+            const movies = await getMoviesForActor(lastNode.id);
+            for (const movie of movies) {
+                const cast = await getActorsForMovie(movie.id);
+                for (const actor of cast) {
+                    if (backwardVisited.has(actor.id)) {
+                        const backwardPath = backwardVisited.get(actor.id).slice().reverse();
+                        const forwardPath = [...path, movie];
+                        return [...forwardPath, ...backwardPath];
+                    }
+                    if (!forwardVisited.has(actor.id)) {
+                        const newPath = [...path, movie, actor];
+                        forwardVisited.set(actor.id, newPath);
+                        newForwardQueue.push(newPath);
+                    }
+                }
+            }
+        }
+        forwardQueue = newForwardQueue;
+
+        // Expand backward
+        sendUpdate(`Searching level ${level} from ${endNode.name}...`);
+        let newBackwardQueue = [];
+        for (const path of backwardQueue) {
+            const lastNode = path[path.length - 1];
+            const movies = await getMoviesForActor(lastNode.id);
+            for (const movie of movies) {
+                const cast = await getActorsForMovie(movie.id);
+                for (const actor of cast) {
+                    if (forwardVisited.has(actor.id)) {
+                        const forwardPath = forwardVisited.get(actor.id);
+                        const backwardPath = [...path, movie].slice().reverse();
+                        return [...forwardPath, ...backwardPath];
+                    }
+                    if (!backwardVisited.has(actor.id)) {
+                        const newPath = [...path, movie, actor];
+                        backwardVisited.set(actor.id, newPath);
+                        newBackwardQueue.push(newPath);
+                    }
+                }
+            }
+        }
+        backwardQueue = newBackwardQueue;
+    }
+    return null;
+}
+
+module.exports = app;
+

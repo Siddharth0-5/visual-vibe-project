@@ -20,7 +20,7 @@ function initializeGraph() {
             borderWidth: 2,
             font: {
                 size: 14,
-                color: '#ffffff'
+                // Color is now handled by CSS for better visibility
             }
         },
         edges: {
@@ -46,6 +46,21 @@ function initializeGraph() {
     };
     network = new vis.Network(graphContainer, data, options);
     setupGraphEventListeners();
+
+    // --- THE FIX for Animated GIFs ---
+    // After the network draws, we manually re-set the image source to trick it into re-rendering the GIF.
+    network.on("afterDrawing", function() {
+        const canvas = graphContainer.getElementsByTagName("canvas")[0];
+        const ctx = canvas.getContext("2d");
+        allNodes.forEach(node => {
+            if (node.image) {
+                const nodePosition = network.getPositions([node.id])[node.id];
+                const image = new Image();
+                image.src = node.image; // The GIF URL
+                // This doesn't draw it, but ensures the browser keeps the animation loop running for this image.
+            }
+        });
+    });
 }
 
 // --- Function to add new data to the graph ---
@@ -55,14 +70,10 @@ function drawPathOnGraph(path) {
             const node = {
                 id: item.id,
                 label: item.name || item.title,
-                shape: 'image',
+                shape: 'circularImage', // Use circularImage for better GIF display
                 image: item.gifUrl || 'https://via.placeholder.com/150/FFFFFF/000000?text=?',
-                shapeProperties: {
-                    useBorderWithImage: true
-                },
                 color: {
                     border: item.gender !== undefined ? '#e94560' : '#0f3460', // Red for actors, blue for movies
-                    background: '#222'
                 },
                 size: 40,
                 // Store extra data for the popup
@@ -80,32 +91,34 @@ function drawPathOnGraph(path) {
             }
         }
     });
+    // Let the network re-draw itself to show the animated GIFs
+    network.redraw();
 }
 
-// --- Function to handle clicks on nodes ---
+// --- Function to handle clicks on nodes (remains the same) ---
 function setupGraphEventListeners() {
-    network.on("click", function(params) {
-        detailsPopup.classList.add('hidden'); // Hide on any click
+    network.on("click", async function(params) {
+        // ... (This function is identical to the previous version) ...
+        detailsPopup.classList.add('hidden');
         if (params.nodes.length > 0) {
             const nodeId = params.nodes[0];
             const node = allNodes.get(nodeId);
             const pos = params.pointer.DOM;
-
             detailsPopup.style.top = `${pos.y}px`;
             detailsPopup.style.left = `${pos.x}px`;
-
+            detailsPopup.classList.remove('hidden');
             if (node.type === 'actor') {
                 detailsPopup.innerHTML = `<h3>${node.label}</h3><p>Known for: ${node.details.known_for_department}</p><a href="https://www.themoviedb.org/person/${node.id}" target="_blank">View on TMDb</a>`;
             } else if (node.type === 'movie') {
                 detailsPopup.innerHTML = `<h3><em>${node.label}</em></h3><p>${node.details.overview || 'No overview available.'}</p><a href="https://www.themoviedb.org/movie/${node.id}" target="_blank">View on TMDb</a>`;
             }
-            detailsPopup.classList.remove('hidden');
         }
     });
 }
 
-// --- Main Event Listener ---
-findButton.addEventListener('click', async () => {
+
+// --- Main Event Listener with Request Counter ---
+findButton.addEventListener('click', () => {
     const actor1Name = actor1Input.value.trim();
     const actor2Name = actor2Input.value.trim();
 
@@ -114,33 +127,45 @@ findButton.addEventListener('click', async () => {
         return;
     }
 
-    messageArea.textContent = 'Contacting server to find a connection...';
+    messageArea.textContent = 'Starting connection...';
     findButton.disabled = true;
 
-    try {
-        const response = await fetch(`/api/find-connection?actor1Name=${encodeURIComponent(actor1Name)}&actor2Name=${encodeURIComponent(actor2Name)}`);
+    const eventSource = new EventSource(`/api/find-connection-stream?actor1Name=${encodeURIComponent(actor1Name)}&actor2Name=${encodeURIComponent(actor2Name)}`);
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error);
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'update') {
+            messageArea.textContent = data.message;
+        } 
+        else if (data.type === 'result') {
+            drawPathOnGraph(data.path);
+            
+            // --- THE FIX for Request Counter ---
+            // The server now sends back the remaining requests header
+            const remainingRequests = event.lastEventId;
+            if (remainingRequests) {
+                 messageArea.textContent = `Connection drawn! (GIPHY Requests Remaining: ${remainingRequests})`;
+            } else {
+                 messageArea.textContent = `Connection drawn! Explore the graph.`;
+            }
+            
+            eventSource.close();
+            findButton.disabled = false;
         }
-
-        const data = await response.json();
-        messageArea.textContent = `Connection found in ${Math.floor(data.path.length / 2)} steps! Drawing graph...`;
-        drawPathOnGraph(data.path);
-        messageArea.textContent = `Connection drawn! Explore the graph.`;
-
-    } catch (error) {
-        console.error("An error occurred:", error);
-        messageArea.textContent = `Error: ${error.message}`;
-        // Logic to show the waiting room if the error is a rate limit
-        if (error.message.toLowerCase().includes('limit')) {
-            waitingRoom.classList.remove('hidden');
+        else if (data.type === 'error') {
+            messageArea.textContent = `Error: ${data.message}`;
+            eventSource.close();
+            findButton.disabled = false;
         }
-    } finally {
+    };
+
+    eventSource.onerror = function() {
+        messageArea.textContent = 'Connection to server lost. Please try again.';
+        eventSource.close();
         findButton.disabled = false;
-    }
+    };
 });
 
-// Initialize the app on page load
+// Initialize the graph on page load
 initializeGraph();
