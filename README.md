@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="[https://i.imgur.com/your-logo-or-banner.png](https://i.imgur.com/TKvOXX6.jpeg)" alt="Visual Vibe Connector Logo" width="150"/>
+  <img src="[[https://i.imgur.com/your-logo-or-banner.png](https://i.imgur.com/TKvOXX6.jpeg)](https://i.imgur.com/TKvOXX6.jpeg)" alt="Visual Vibe Connector Logo" width="150"/>
   <h1>Visual Vibe Connector</h1>
   <p>
     <b>An interactive "Six Degrees" engine that discovers and visualizes the cinematic universe connecting any two actors.</b>
