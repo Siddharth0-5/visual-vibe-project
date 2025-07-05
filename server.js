@@ -23,14 +23,15 @@ setInterval(() => {
 
 // Middleware
 app.use(cors());
-app.use(express.static(path.join(__dirname, '/')));
+// --- THE FIX for Serving Static Files on Vercel ---
+const publicPath = path.resolve(__dirname);
+app.use(express.static(publicPath));
 
-// Explicitly define the root route to serve the index.html file
-// Fucking vercel istg
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+// Make sure all non-API routes are handled by index.html
+app.get(/^(?!\/api).*/, (req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
 });
-// --- END OF FIX ---
+
 
 // --- Server-Sent Events Endpoint ---
 app.get('/api/find-connection-stream', async (req, res) => {
