@@ -1,0 +1,84 @@
+# Visual Vibe Connector
+
+An interactive web application that discovers and visualizes the shortest cinematic connection path between any two actors. Forget boring lists of text—this app transforms movie trivia into a dynamic, explorable graph, complete with real-time feedback and engaging visuals.
+
+This project was built for the **Call2Code Hackathon**, showcasing a robust full-stack architecture, advanced search algorithms, and a user-centric design.
+
+**[Live Demo Link](https://visual-vibe-project.vercel.app/)** 🚀
+
+---
+
+## ✨ Core Features
+
+*   **Interactive Graph UI:** Powered by `vis-network`, the connection path is displayed as a dynamic, physics-based graph. Users can drag nodes, pan, and zoom to explore the cinematic universe.
+*   **High-Performance Bidirectional Search:** To find even long connections lightning-fast, our backend searches from both actors simultaneously and meets in the middle, dramatically reducing search time and API calls.
+*   **Real-Time Search Feedback:** Never leave the user guessing! We use **Server-Sent Events (SSE)** to push live status updates like "Searching level 2 from Chris Evans..." from the server directly to the browser.
+*   **Secure Backend Architecture:** A serverless Node.js backend protects our API keys by handling all external API calls. Keys are safely stored in a `.env` file and are never exposed on the client-side.
+*   **Details on Demand:** Clicking any actor or movie node in the graph fetches and displays more information, such as movie overviews, ratings, and actor specialties.
+*   **Engaging Visuals:** Each node in the graph is represented by a relevant, animated GIF fetched from the GIPHY API, bringing the connections to life.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+This project is built as a modern full-stack application, separating concerns between the client and a secure server environment.
+
+### Frontend (`/public`)
+*   **HTML5, CSS3, Vanilla JavaScript (ES6+)**
+*   **vis-network.js:** The core library for rendering and interacting with the network graph.
+
+### Backend (`/api`)
+*   **Node.js & Serverless Functions:** The backend logic is deployed as a serverless function on Vercel, ensuring scalability and efficiency.
+*   **Axios:** Used for making promise-based HTTP requests to the external TMDb and GIPHY APIs from the server.
+
+### APIs & Services
+*   **The Movie Database (TMDb):** The primary data source for actors, movies, and their relationships.
+*   **GIPHY:** Used to fetch animated GIFs for each node, providing the "visual vibe."
+*   **Vercel:** For seamless deployment, hosting, and management of environment variables.
+
+---
+
+## 🚀 Getting Started Locally
+
+To run this project on your own machine, follow these steps.
+
+### Prerequisites
+*   [Node.js](https://nodejs.org/) (version 18.x or later)
+*   API keys from [TMDb](https://www.themoviedb.org/settings/api) and [GIPHY](https://developers.giphy.com/)
+
+### Setup
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/visual-vibe-project.git
+    cd visual-vibe-project
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Create your environment file:**
+    *   Create a file named `.env` in the root of the project.
+    *   Add your secret API keys to it:
+      ```
+      TMDB_API_KEY="YOUR_TMDB_KEY_HERE"
+      GIPHY_API_KEY="YOUR_GIPHY_KEY_HERE"
+      ```
+
+4.  **Start the development server:**
+    *   This project is configured for Vercel's environment. To run it locally, you can use the Vercel CLI.
+    *   Install the Vercel CLI: `npm i -g vercel`
+    *   Run the project: `vercel dev`
+
+5.  **Open the app:**
+    *   The terminal will show the local server address, typically `http://localhost:3000`.
+    *   Open this URL in your web browser.
+
+---
+
+## 🏆 Hackathon Highlights
+
+*   **Innovation:** We went beyond a simple fetch-and-display model by implementing a complex bidirectional search algorithm and real-time server communication with SSE.
+*   **User Experience:** The interactive graph and live feedback create a dynamic and engaging experience that encourages user exploration.
+*   **Technical Excellence:** The full-stack, serverless architecture demonstrates a modern, secure, and scalable approach to web development.
