@@ -20,7 +20,7 @@
 
 <br>
 
-[![Visual Vibe Connector Screenshot]](https://github.com/Siddharth0-5/visual-vibe-project/blob/765d5777383df26ff0e4d88849b79d63606a6b00/Demo.jpg)
+[![Visual Vibe Connector Screenshot]] (https://github.com/Siddharth0-5/visual-vibe-project/blob/765d5777383df26ff0e4d88849b79d63606a6b00/Demo.jpg)
 
 ---
 
